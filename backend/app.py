@@ -1,6 +1,8 @@
 # backend/app.py
 from flask import Flask, render_template, request
 import os
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from predict import predict_fertility
 
 app = Flask(__name__)

@@ -2,7 +2,7 @@
 import joblib
 import numpy as np
 
-model = joblib.load("../models/best_soil_model.pkl")
+model = joblib.load("/opt/render/project/src/models/best_soil_model.pkl")
 
 def predict_fertility(input_data):
     """

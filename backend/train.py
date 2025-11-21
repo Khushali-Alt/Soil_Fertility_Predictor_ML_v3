@@ -46,8 +46,8 @@ for name, model in models.items():
         best_name = name
 
 # Save best model
-os.makedirs("../models", exist_ok=True)
-joblib.dump(best_model, "../models/best_soil_model.pkl")
+os.makedirs("/opt/render/project/src/models", exist_ok=True)
+joblib.dump(best_model, "/opt/render/project/src/models/best_soil_model.pkl")
 print(f"\nBest model: {best_name} with R² = {best_score:.4f}")
 print("Model saved as models/best_soil_model.pkl")
 

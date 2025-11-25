@@ -1,7 +1,7 @@
 # Soil Fertility Predictor ML  
 **Real-time Soil Health Analysis & Smart Fertilizer Recommendation System**  
 
-**Live App** → https://soil-fertility-predictor.onrender.com  
+**Live App** → https://soil-fertility-predictor-ml-v3.onrender.com  
 
 
 
@@ -29,8 +29,8 @@
 ---
 
 ### Live Demo
-**Website**: https://soil-fertility-predictor.onrender.com  
-**Test Cases**: https://soil-fertility-predictor.onrender.com/test-cases  
+**Website**: (https://soil-fertility-predictor-ml-v3.onrender.com)
+**Test Cases**: https://soil-fertility-predictor-ml-v3.onrender.com/test-cases  
 
 Try the **"Ultra-Fertile Soil"** test case → Should give **98–100%**
 
@@ -57,3 +57,4 @@ pip install -r backend/requirements.txt
 
 # 5. Run the app
 python backend/app.py
+

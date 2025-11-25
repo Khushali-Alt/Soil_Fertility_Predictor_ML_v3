@@ -9,20 +9,44 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 
-# ==================== CORRECT PATHS FOR RENDER & LOCAL ====================
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))        # /backend
-ROOT_DIR = os.path.dirname(BASE_DIR)                          # project root
-MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "models", "best_soil_model.pkl")
+# ==================== BULLETPROOF PATHS FOR RENDER + LOCAL ====================
+current_dir = os.path.dirname(os.path.abspath(__file__))  # backend folder
+project_root = os.path.dirname(current_dir)               # root folder
 
-app = Flask(__name__, template_folder=os.path.join(os.path.dirname(__file__), "templates"))
+# Try multiple possible paths for model (Render pe kabhi bhi path change ho sakta hai)
+possible_model_paths = [
+    os.path.join(project_root, "models", "best_soil_model.pkl"),
+    os.path.join(current_dir, "models", "best_soil_model.pkl"),
+    os.path.join("/opt/render/project/src", "models", "best_soil_model.pkl"),
+    os.path.join("/", "models", "best_soil_model.pkl"),
+    "models/best_soil_model.pkl",
+    "best_soil_model.pkl"
+]
 
-# Load model
-try:
-    model = joblib.load(MODEL_PATH)
-    print("MODEL LOADED SUCCESSFULLY →", MODEL_PATH)
-except Exception as e:
-    print("MODEL LOAD FAILED →", e)
-    model = None
+model = None
+MODEL_PATH_USED = "NOT FOUND"
+
+for path in possible_model_paths:
+    if os.path.exists(path):
+        try:
+            model = joblib.load(path)
+            MODEL_PATH_USED = path
+            print(f"MODEL LOADED SUCCESSFULLY → {path}")
+            break
+        except Exception as e:
+            print(f"Failed to load model from {path}: {e}")
+    else:
+        print(f"Model path not found: {path}")
+
+if model is None:
+    print("FATAL: COULD NOT LOAD MODEL FROM ANY PATH!")
+else:
+    print(f"FINAL MODEL LOADED FROM: {MODEL_PATH_USED}")
+
+# Flask app with correct templates path
+app = Flask(__name__,
+            template_folder=os.path.join(current_dir, "templates"),
+            static_folder=os.path.join(current_dir, "static") if os.path.exists(os.path.join(current_dir, "static")) else None)
 
 # Recommendation function
 def get_recommendation(pred_pct, inputs):
@@ -31,42 +55,41 @@ def get_recommendation(pred_pct, inputs):
     rec = "<ul class='space-y-4 text-lg'>"
 
     if N < 50:
-        rec += "<li class='text-orange-500'>Apply <strong>Urea (46% N)</strong>: 150–200 kg/ha</li>"
+        rec += "<li class='text-orange-500'>Apply <strong>Urea</strong>: 150–200 kg/ha</li>"
     elif N < 80:
         rec += "<li class='text-yellow-500'>Apply <strong>Urea</strong>: 80–120 kg/ha</li>"
     else:
-        rec += "<li class='text-green-500'>Nitrogen level is sufficient</li>"
+        rec += "<li class='text-green-500'>Nitrogen sufficient</li>"
 
     if P < 80:
-        rec += "<li class='text-orange-500'>Apply <strong>DAP (18-46-0)</strong>: 100–180 kg/ha</li>"
+        rec += "<li class='text-orange-500'>Apply <strong>DAP</strong>: 100–180 kg/ha</li>"
     elif P < 140:
         rec += "<li class='text-yellow-500'>Apply <strong>DAP</strong>: 50–100 kg/ha</li>"
     else:
-        rec += "<li class='text-green-500'>Phosphorus is adequate</li>"
+        rec += "<li class='text-green-500'>Phosphorus adequate</li>"
 
     if K < 150:
-        rec += "<li class='text-orange-500'>Apply <strong>MOP (60% K)</strong>: 100–150 kg/ha</li>"
+        rec += "<li class='text-orange-500'>Apply <strong>MOP</strong>: 100–150 kg/ha</li>"
     elif K < 220:
         rec += "<li class='text-yellow-500'>Apply <strong>MOP</strong>: 50–80 kg/ha</li>"
     else:
-        rec += "<li class='text-green-500'>Potassium is sufficient</li>"
+        rec += "<li class='text-green-500'>Potassium sufficient</li>"
 
     if OM < 3:
         rec += "<li class='text-orange-500'>Add <strong>FYM/Compost</strong>: 10–15 tons/ha</li>"
     elif OM < 5:
         rec += "<li class='text-yellow-500'>Add <strong>FYM</strong>: 5–8 tons/ha</li>"
     else:
-        rec += "<li class='text-green-500'>Organic Matter is good</li>"
+        rec += "<li class='text-green-500'>Organic Matter good</li>"
 
     if pH < 6.0:
-        rec += "<li class='text-orange-500'>Apply <strong>Lime</strong>: 2–5 tons/ha to correct acidity</li>"
+        rec += "<li class='text-orange-500'>Apply <strong>Lime</strong>: 2–5 tons/ha</li>"
     elif pH > 7.8:
-        rec += "<li class='text-orange-500'>Apply <strong>Gypsum/Sulfur</strong> to reduce alkalinity</li>"
+        rec += "<li class='text-orange-500'>Apply <strong>Gypsum</strong> to reduce pH</li>"
     else:
-        rec += "<li class='text-green-500'>Soil pH is ideal (6.0–7.8)</li>"
+        rec += "<li class='text-green-500'>pH is perfect</li>"
 
-    rec += "<li class='text-emerald-600 font-bold mt-6'>Target: Ultra-Fertile Soil in One Season!</li>"
-    rec += "</ul>"
+    rec += "<li class='text-emerald-600 font-bold mt-6'>Target: Ultra-Fertile in one season!</li></ul>"
     return rec
 
 @app.route("/", methods=["GET", "POST"])
@@ -79,24 +102,21 @@ def index():
 
     if request.method == "POST":
         try:
-            # Form se values le rahe hain
-            keys = ["NO3", "NH4", "P", "K", "SO4", "B", "OM", "pH", "Zn", "Cu", "Fe", "Ca", "Mg", "Na"]
+            keys = ["NO3","NH4","P","K","SO4","B","OM","pH","Zn","Cu","Fe","Ca","Mg","Na"]
             inputs = []
             for key in keys:
-                value = request.form.get(key)
-                if not value or value.strip() == "":
-                    raise ValueError(f"{key} is missing!")
-                inputs.append(float(value))
+                val = request.form.get(key)
+                if not val or val.strip() == "":
+                    raise ValueError(f"{key} is required!")
+                inputs.append(float(val))
 
             if model is None:
                 raise Exception("Model not loaded on server!")
 
-            # Predict
-            pred = model.predict(np.array([inputs]))[0]
-            prediction = round(float(pred), 1)
+            raw_pred = model.predict(np.array([inputs]))[0]
+            prediction = round(float(raw_pred), 1)
             prediction = max(0.0, min(100.0, prediction))
 
-            # Status
             if prediction >= 98:
                 status = "Ultra-Fertile"
             elif prediction >= 88:
@@ -111,8 +131,8 @@ def index():
             recommendation = get_recommendation(prediction, inputs)
 
         except Exception as e:
-            error = f"Please fill all fields correctly! ({str(e)})"
-            print("FORM ERROR →", e)
+            error = f"Invalid input! {str(e)}"
+            print("FORM ERROR:", e)
 
     return render_template("index.html",
                            prediction=prediction,
@@ -138,15 +158,14 @@ def download_report():
 
         story.append(Paragraph("Soil Fertility Analysis Report", styles['Title']))
         story.append(Spacer(1, 20))
-        story.append(Paragraph(f"Generated on: {datetime.datetime.now().strftime('%d %B %Y, %I:%M %p')}", styles['Normal']))
+        story.append(Paragraph(f"Date: {datetime.datetime.now().strftime('%d %B %Y, %I:%M %p')}", styles['Normal']))
         story.append(Spacer(1, 30))
-
-        story.append(Paragraph(f"<b>Predicted Fertility Score:</b> {pred}%", styles['Heading2']))
-        story.append(Paragraph(f"<b>Soil Status:</b> <font color='green'><b>{status}</b></font>", styles['Normal']))
+        story.append(Paragraph(f"<b>Fertility Score:</b> {pred}%", styles['Heading2']))
+        story.append(Paragraph(f"<b>Status:</b> <font color='green'><b>{status}</b></font>", styles['Normal']))
         story.append(Spacer(1, 20))
 
         if rec_html:
-            story.append(Paragraph("<b>Recommended Actions:</b>", styles['Heading3']))
+            story.append(Paragraph("<b>Recommendations:</b>", styles['Heading3']))
             story.append(Spacer(1, 10))
             items = re.findall(r'<li[^>]*>(.*?)</li>', rec_html)
             for item in items:
@@ -169,7 +188,7 @@ def download_report():
         )
     except Exception as e:
         print("PDF ERROR:", e)
-        return "Failed to generate PDF", 500
+        return "PDF generation failed", 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)

@@ -76,15 +76,13 @@
           </div>
         </button>
         <button
-        onclick="promptInstall()"
-        class="ml-4  w-auto p-auto h-12 bg-gradient-to-r from-gray-600 to-black-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:scale-105 transition"
-      >
-        Install App
-      </button>
-       
+          onclick="promptInstall()"
+          class="ml-4 w-auto p-auto h-12 bg-gradient-to-r from-gray-600 to-black-600 text-white px-6 py-3 rounded-xl font-bold shadow-lg hover:scale-105 transition"
+        >
+          Install App
+        </button>
       </div>
       <!-- Add this next to your dark mode toggle -->
-      
 
       <script>
         let deferredPrompt;
@@ -124,7 +122,15 @@
                 Fill values from your soil test report
               </p>
             </div>
-
+            <script>
+              document.addEventListener("DOMContentLoaded", () => {
+                const params = new URLSearchParams(window.location.search);
+                params.forEach((val, key) => {
+                  const el = document.querySelector(`input[name="${key}"]`);
+                  if (el) el.value = val;
+                });
+              });
+            </script>
             <form method="POST" action="/predict" class="space-y-7">
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
@@ -418,8 +424,7 @@
               <!-- PDF BUTTON -->
               <div class="mt-10">
                 <a
-                  href="{{ pdf_report }}"
-                  download="Soil_Fertility_Report.pdf"
+                  href="/download_report?pred={{ prediction|round(1) }}&status={{ status }}&rec={{ recommendation|urlencode }}"
                   class="inline-flex items-center gap-3 px-10 py-5 bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 text-white font-bold text-xl rounded-2xl shadow-2xl transform hover:scale-105 transition-all duration-300"
                 >
                   <svg

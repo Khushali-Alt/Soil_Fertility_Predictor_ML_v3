@@ -1,183 +1,156 @@
-from flask import Flask, render_template, request, send_from_directory
+from flask import Flask, render_template, request, send_file, url_for
 import os
 import joblib
-from io import BytesIO
-import base64
+import numpy as np
+import io
+import datetime
+import re
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
 
-app = Flask(__name__)
-
-# ------------------- LOAD MODEL -------------------
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# ===== UNIVERSAL PATHS (Render, Railway, Heroku, Local sab chalega) =====
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, "models", "best_soil_model.pkl")
+TEMPLATE_FOLDER = os.path.join(BASE_DIR, "templates")
+STATIC_FOLDER = os.path.join(BASE_DIR, "static")
 
-if not os.path.exists(MODEL_PATH):
-    print("Model not found → Training now...")
-    os.system("python backend/train.py")
+app = Flask(__name__, template_folder=TEMPLATE_FOLDER, static_folder=STATIC_FOLDER)
 
-model = joblib.load(MODEL_PATH)
-print("Model loaded → Ready for predictions!")
-# --------------------------------------------------
+# Load model
+try:
+    model = joblib.load(MODEL_PATH)
+    print("Model loaded → Ready to predict!")
+except Exception as e:
+    print("MODEL LOAD ERROR →", e)
+    model = None
 
-# ------------------- RECOMMENDATION -------------------
-def generate_recommendation(features, pred_pct):
-    NO3, NH4, P, K, SO4, B, OM, pH, Zn, Cu, Fe, Ca, Mg, Na = features
+# Recommendation function
+def get_recommendation(pred_pct, inputs):
+    NO3, NH4, P, K, SO4, B, OM, pH, Zn, Cu, Fe, Ca, Mg, Na = inputs
     N = NO3 + NH4
-
-    rec = "<ul class='space-y-3 text-lg'>"
+    rec = "<ul class='space-y-4 text-lg'>"
     
-    if pred_pct < 60:
-        rec += "<li class='text-red-600 dark:text-red-400 font-semibold'>Critical Action Required</li>"
-
-    # Nitrogen
-    if N < 30:
-        rec += "<li class='text-orange-500'>Apply <strong>Urea (46% N)</strong>: 150–200 kg/ha</li>"
-    elif N < 50:
+    if N < 50:
+        rec += "<li class='text-orange-500'>Apply <strong>Urea</strong>: 150–200 kg/ha</li>"
+    elif N < 80:
         rec += "<li class='text-yellow-500'>Apply <strong>Urea</strong>: 80–120 kg/ha</li>"
     else:
-        rec += "<li class='text-green-500'>Nitrogen level is sufficient</li>"
+        rec += "<li class='text-green-500'>Nitrogen sufficient</li>"
 
-    # Phosphorus
-    if P < 40:
-        rec += "<li class='text-orange-500'>Apply <strong>DAP (18-46-0)</strong>: 100–150 kg/ha</li>"
-    elif P < 80:
-        rec += "<li class='text-yellow-500'>Apply <strong>DAP</strong>: 50–80 kg/ha</li>"
+    if P < 80:
+        rec += "<li class='text-orange-500'>Apply <strong>DAP</strong>: 100–180 kg/ha</li>"
+    elif P < 140:
+        rec += "<li class='text-yellow-500'>Apply <strong>DAP</strong>: 50–100 kg/ha</li>"
     else:
-        rec += "<li class='text-green-500'>Phosphorus is adequate</li>"
+        rec += "<li class='text-green-500'>Phosphorus adequate</li>"
 
-    # Potassium
-    if K < 100:
-        rec += "<li class='text-orange-500'>Apply <strong>Muriate of Potash (60% K)</strong>: 80–120 kg/ha</li>"
+    if K < 150:
+        rec += "<li class='text-orange-500'>Apply <strong>MOP</strong>: 100–150 kg/ha</li>"
+    elif K < 220:
+        rec += "<li class='text-yellow-500'>Apply <strong>MOP</strong>: 50–80 kg/ha</li>"
     else:
-        rec += "<li class='text-green-500'>Potassium is sufficient</li>"
+        rec += "<li class='text-green-500'>Potassium sufficient</li>"
 
-    # Organic Matter
-    if OM < 2:
-        rec += "<li class='text-orange-500'>Add <strong>FYM</strong>: 10–15 tons/ha</li>"
-    elif OM < 4:
-        rec += "<li class='text-yellow-500'>Add <strong>FYM/Compost</strong>: 5–8 tons/ha</li>"
+    if OM < 3:
+        rec += "<li class='text-orange-500'>Add <strong>FYM/Compost</strong>: 10–15 tons/ha</li>"
+    elif OM < 5:
+        rec += "<li class='text-yellow-500'>Add <strong>FYM</strong>: 5–8 tons/ha</li>"
+    else:
+        rec += "<li class='text-green-500'>Organic Matter good</li>"
 
-    # pH
-    if pH > 7.8:
-        rec += "<li class='text-orange-500'>Apply <strong>Gypsum/Sulfur</strong> to lower pH</li>"
-    elif pH < 6.0:
+    if pH < 6.0:
         rec += "<li class='text-orange-500'>Apply <strong>Lime</strong>: 2–5 tons/ha</li>"
+    elif pH > 7.8:
+        rec += "<li class='text-orange-500'>Apply <strong>Gypsum</strong> to reduce pH</li>"
+    else:
+        rec += "<li class='text-green-500'>pH is perfect</li>"
 
-    # Micronutrients
-    if Zn < 1.5:
-        rec += "<li class='text-orange-500'>Apply <strong>Zinc Sulphate</strong>: 25 kg/ha</li>"
-    if Fe < 5:
-        rec += "<li class='text-orange-500'>Apply <strong>Ferrous Sulphate</strong>: 20–25 kg/ha</li>"
-
-    rec += "<li class='text-emerald-600 dark:text-emerald-400 mt-4 font-bold'>Target: 85%+ fertility in one season</li>"
+    rec += "<li class='text-emerald-600 font-bold mt-6'>Target: Ultra-Fertile in one season!</li>"
     rec += "</ul>"
     return rec
 
-# ------------------- PDF GENERATOR -------------------
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib.styles import getSampleStyleSheet
+@app.route("/", methods=["GET", "POST"])
+@app.route("/predict", methods=["POST"])
+def index():
+    error = None
+    prediction = None
+    status = None
+    recommendation = None
 
-def generate_pdf(features, pred_pct, status, recommendation):
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.8*inch)
-    styles = getSampleStyleSheet()
-    story = []
+    if request.method == "POST":
+        try:
+            inputs = [float(request.form.get(k, 0)) for k in ["NO3","NH4","P","K","SO4","B","OM","pH","Zn","Cu","Fe","Ca","Mg","Na"]]
+            final_input = np.array([inputs])
+            raw_score = model.predict(final_input)[0]
+            prediction = round(float(raw_score), 1)
+            prediction = max(0, min(100, prediction))
 
-    story.append(Paragraph("SOIL FERTILITY REPORT", styles['Title']))
-    story.append(Spacer(1, 20))
-    story.append(Paragraph(f"<font size=14>Predicted Fertility: <b>{pred_pct}%</b> → {status}</font>", styles['Normal']))
-    story.append(Spacer(1, 30))
+            if prediction >= 98:
+                status = "Ultra-Fertile"
+            elif prediction >= 88:
+                status = "Very Good"
+            elif prediction >= 75:
+                status = "Average Soil"
+            elif prediction >= 55:
+                status = "Needs Improvement"
+            else:
+                status = "Poor / Deficient"
 
-    data = [
-        ["Parameter", "Value", "Unit"],
-        ["NO₃-N", f"{features[0]:.2f}", "ppm"],
-        ["NH₄-N", f"{features[1]:.2f}", "ppm"],
-        ["Phosphorus", f"{features[2]:.2f}", "ppm"],
-        ["Potassium", f"{features[3]:.2f}", "ppm"],
-        ["Organic Matter", f"{features[6]:.2f}", "%"],
-        ["pH", f"{features[7]:.1f}", ""],
-        ["Zinc", f"{features[8]:.2f}", "ppm"]
-    ]
+            recommendation = get_recommendation(prediction, inputs)
 
-    table = Table(data)
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#22c55e")),
-        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
-        ('GRID', (0,0), (-1,-1), 1, colors.lightgrey),
-        ('BACKGROUND', (0,1), (-1,-1), colors.HexColor("#f0fdf4"))
-    ]))
-    story.append(table)
-    story.append(Spacer(1, 20))
-    story.append(Paragraph("<b>Fertilizer Recommendations:</b>", styles['Heading2']))
-    story.append(Paragraph(recommendation, styles['Normal']))
+        except Exception as e:
+            error = "Please fill all fields correctly!"
+            print(e)
 
-    doc.build(story)
-    pdf_base64 = base64.b64encode(buffer.getvalue()).decode()
-    buffer.close()
-    return f"data:application/pdf;base64,{pdf_base64}"
+    return render_template("index.html", prediction=prediction, status=status, recommendation=recommendation, error=error)
 
-# ------------------- ROUTES -------------------
-@app.route("/")
-def home():
-    return render_template("index.html")
-
-@app.route("/test-cases")
+@app.route("/test_cases")
 def test_cases():
-    return render_template("test-cases.html")
+    return render_template("test_cases.html")
 
-@app.route('/manifest.json')
-def manifest():
-    return send_from_directory('../static', 'manifest.json')
-
-@app.route('/predict', methods=['POST'])
-def predict():
+@app.route("/download_report")
+def download_report():
     try:
-        features = [
-            float(request.form['NO3']),
-            float(request.form['NH4']),
-            float(request.form['P']),
-            float(request.form['K']),
-            float(request.form['SO4']),
-            float(request.form['B']),
-            float(request.form['OM']),
-            float(request.form['pH']),
-            float(request.form['Zn']),
-            float(request.form['Cu']),
-            float(request.form['Fe']),
-            float(request.form['Ca']),
-            float(request.form['Mg']),
-            float(request.form['Na'])
-        ]
+        pred = request.args.get("pred")
+        status = request.args.get("status")
+        rec_html = request.args.get("rec", "")
 
-        prediction_pct = round(float(model.predict([features])[0]), 2)
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=70, bottomMargin=70, leftMargin=70, rightMargin=70)
+        styles = getSampleStyleSheet()
+        story = []
 
-        if prediction_pct >= 90:
-            status, color = "Ultra Fertile", "text-emerald-600 dark:text-emerald-400"
-        elif prediction_pct >= 75:
-            status, color = "Very Good", "text-green-600 dark:text-green-400"
-        elif prediction_pct >= 60:
-            status, color = "Good", "text-yellow-600 dark:text-yellow-400"
-        elif prediction_pct >= 40:
-            status, color = "Needs Improvement", "text-orange-600 dark:text-orange-400"
-        else:
-            status, color = "Poor / Deficient", "text-red-600 dark:text-red-400"
+        story.append(Paragraph("Soil Fertility Analysis Report", styles['Title']))
+        story.append(Spacer(1, 20))
+        story.append(Paragraph(f"Date: {datetime.datetime.now().strftime('%d %B %Y, %I:%M %p')}", styles['Normal']))
+        story.append(Spacer(1, 30))
+        story.append(Paragraph(f"<b>Score:</b> {pred}%", styles['Heading2']))
+        story.append(Paragraph(f"<b>Status:</b> <font color='green'>{status}</font>", styles['Normal']))
+        story.append(Spacer(1, 20))
 
-        recommendation = generate_recommendation(features, prediction_pct)
-        pdf_report = generate_pdf(features, prediction_pct, status, recommendation)
+        if rec_html:
+            story.append(Paragraph("<b>Recommendations:</b>", styles['Heading3']))
+            story.append(Spacer(1, 10))
+            items = re.findall(r'<li[^>]*>(.*?)</li>', rec_html)
+            for item in items:
+                clean = re.sub('<.*?>', '', item)
+                story.append(Paragraph(f"• {clean}", styles['Normal']))
+                story.append(Spacer(1, 6))
 
-        return render_template('index.html',
-                               prediction=prediction_pct,
-                               status=status,
-                               color=color,
-                               recommendation=recommendation,
-                               pdf_report=pdf_report,
-                               features=features)
+        story.append(Spacer(1, 50))
+        story.append(Paragraph("Thank you for using Soil Fertility Predict!", styles['Normal']))
+        story.append(Paragraph("Developed by Nitin & Team", styles['Italic']))
 
+        doc.build(story)
+        buffer.seek(0)
+
+        return send_file(buffer, as_attachment=True,
+                         download_name=f"Soil_Report_{datetime.datetime.now().strftime('%d%m%Y_%H%M')}.pdf",
+                         mimetype="application/pdf")
     except Exception as e:
-        print("ERROR:", str(e))
-        return render_template('index.html', error="Invalid input! Please fill all fields correctly.")
+        print("PDF Error:", e)
+        return "PDF generation failed", 500
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)

@@ -82,7 +82,7 @@
           Install App
         </button>
       </div>
-      <!-- Add this next to your dark mode toggle -->
+     
 
       <script>
         let deferredPrompt;
@@ -105,10 +105,10 @@
         }
       </script>
 
-      <!-- Main Content -->
+     
       <main class="flex-grow max-w-7xl mx-auto px-6 py-12 w-full">
         <div class="grid lg:grid-cols-2 gap-10">
-          <!-- LEFT: FORM CARD -->
+        
           <div
             class="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 p-8 lg:p-10"
           >
@@ -356,7 +356,7 @@
             </form>
           </div>
 
-          <!-- RIGHT: RESULT CARD - 100% WORKING DOUGHNUT GAUGE (NO PLUGIN NEEDED) -->
+       
           <div
             class="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 p-8 lg:p-10 flex flex-col justify-center transition-all duration-500"
           >
@@ -368,12 +368,11 @@
                 Predicted Fertility
               </h2>
 
-              <!-- MODERN DOUGHNUT GAUGE (WORKS EVERY TIME) -->
-              <!-- LUXURY GAUGE - FINAL BOSS VERSION -->
+              
               <div class="relative mt-12 w-96 h-64 mx-auto">
                 <canvas id="fertilityGauge"></canvas>
 
-                <!-- BIG PERCENTAGE + STATUS IN CENTER -->
+                
                 <div
                   class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
                 >
@@ -389,7 +388,7 @@
                   </div>
                 </div>
 
-                <!-- GLOW EFFECT -->
+               
                 <div
                   class="absolute inset-0 rounded-full opacity-30 blur-3xl -z-10"
                   style="
@@ -405,7 +404,7 @@
                 ></div>
               </div>
 
-              <!-- RECOMMENDATIONS -->
+             
               <div
                 class="mt-12 p-8 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/30 dark:to-green-900/30 rounded-2xl border border-emerald-200 dark:border-emerald-800"
               >
@@ -421,7 +420,7 @@
                 </div>
               </div>
 
-              <!-- PDF BUTTON -->
+             
               <div class="mt-10">
                 <a
                   href="/download_report?pred={{ prediction|round(1) }}&status={{ status }}&rec={{ recommendation|urlencode }}"
@@ -445,7 +444,7 @@
               </div>
             </div>
 
-            <!-- ONLY CHART.JS — NO PLUGIN — WORKS EVERY TIME -->
+            
             <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
             <script>
               document.addEventListener("DOMContentLoaded", function() {

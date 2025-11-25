@@ -4,11 +4,11 @@ import numpy as np
 import os
 import subprocess
 
-# Smart path
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(BASE_DIR, "models", "best_soil_model.pkl")
 
-# ——— CRITICAL: Train model if it doesn't exist ———
+# ———  Train model if it doesn't exist ———
 if not os.path.exists(MODEL_PATH):
     print("MODEL NOT FOUND → AUTO TRAINING NOW...")
     # Create models folder

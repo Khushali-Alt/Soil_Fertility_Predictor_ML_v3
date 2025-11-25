@@ -10,7 +10,7 @@ from sklearn.metrics import r2_score
 import joblib
 import os
 
-# ——— SMART PATH: works locally AND on Render ———
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_PATH = os.path.join(BASE_DIR, "data", "processed_data_set.csv")
 MODEL_DIR = os.path.join(BASE_DIR, "models")
@@ -54,8 +54,7 @@ for name, model in models.items():
         best_model = model
         best_name = name
 
-# Save the best model
-# Save the best model
+
 joblib.dump(best_model, MODEL_PATH)
 
 print(f"\nBEST MODEL: {best_name} → R² = {best_score:.4f}")
